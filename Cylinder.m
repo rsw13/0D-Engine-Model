@@ -3,34 +3,37 @@ classdef Cylinder < handle
     %   Detailed explanation goes here
     
     properties
-        stroke = 135;  % mm
-        bore = 105;    % mm
-        crankRadius = stroke/2; %mm
+        stroke = 135;                      % mm
+        bore = 105;                        % mm
+        crankRadius = stroke/2;            % mm
         rodRatio = 1.6
         connectingRod = stroke * rodRatio; % mm
         compressionRatio = 16.5;
         
-        theta = 0;  % deg
+        theta = 0;        % crank angle (deg)
+        stepSize          % crank angle step size (deg)
         volume
-        ID
-        N % engine speed
+        ID                % Ignition delay
+        N                 % Engine speed (rpm)
         
-        Fsto = 14.01; % Stoichiometric ratio
+        Fsto = 14.01;     % Stoichiometric ratio
+        FB = zeros(1,2);  % fraction of fuel burnt at (t-1) and (t)
         
         T = 200 + 273.15; % Intial temperature guess K
-        F = 1; % Intial equivalence ratio guess
-        P = 1; % Intial pressure guess bar
-        m = 1; %Intial mass guess kg
+        F = 1;            % Intial equivalence ratio guess
+        P = 1;            % Intial pressure guess bar
+        m = 1;            % Intial mass guess kg
         
         dV
         
+        massTrace = [];
         volumeTrace = [];
         temperatureTrace = [];
         pressureTrace = [];
         equivalenceTrace = [];
         thetaTrace = [];
         
-        exhustValveOpens = 520;
+        exhustValveOpens = 520;  % Exhaust
         exhustValveCloses = 560;
         inletValveOpens = 710;
         inletValveCloses = 180;
@@ -39,13 +42,22 @@ classdef Cylinder < handle
     end
     
     methods
-        function self = Cylinder(dTheta)
+        function self = Cylinder(stepSize, dTheta)
             
            if nargin == 1
+               
+               self.stepSize = stepSize;
+               
+           elseif nargin == 2
+               
+               self.stepSize = stepSize;
                self.theta = dTheta;
                self.newVolume;
                               
            end
+           
+           
+           
         end
         
         function newVolume(self)
@@ -73,12 +85,21 @@ classdef Cylinder < handle
         
         function changeInMass(self)
             if self.inletValveCloses <= self.theta < self.combustionStarts
+                % valves are shut and no fuel is added, so no mass is added
                 dm = 0;
+                
+                self.massTrace(end+1,:) = dm;
                 
             elseif self.combustionStarts <= self.theta < ...
                     self.exhustValveOpens
+                % valves are shut but fuel is added, so change in mass is 
+                % equal to the rate of fuel burnt
                 if self.theta == self.combustionStarts
-                    self.ID = 2.4 * self.F^(-0.2) * self.P^(-1.02) * exp(2100/self.T);
+                    
+                    self.ID = 2.4 * self.F^(-0.2) * self.P^(-1.02) *...
+                        exp(2100/self.T);
+                    
+                    self.FB(1) = 0;
                     
                 end
                 
@@ -98,12 +119,16 @@ classdef Cylinder < handle
              
                 beta = 1 - (a * self.F ^ b) / (self.ID ^ c);
                 
-                FB = beta * f1 + (1 - beta) * f2;
+                self.FB(2) = beta * f1 + (1 - beta) * f2;
+                
+                dmf = (self.FB(2) - self.FB(1))/self.stepSize;
                 
                 dm = dmf;
                 
+                self.massTrace(end+1,:) = dm;
+                
             end
     end
-    %it works!
+   
 end
-
+end
