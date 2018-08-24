@@ -1,12 +1,17 @@
 
-A = lift * 2 * pi * valve_radius;
+lift = 0.01;
+valve_radius = 0.0315
+
+A = lift * 2 * pi * valve_radius;  % valve flow area
+
+% need to add Cf map/.csv file so dm can be caluculated
 
 
 
 u = dm / (rho * A * Cd);
 
 P0 = P1 * (1 + ((gamma - 1) / 2) * (u / sqrt(gamma * R * T1)) ^ 2)^...
-(gamma / (gamma -1  ));   % stagnation pressure 
+(gamma / (gamma -1  ));   % stagnation pressure upstream of the valve
 
 critical_pressure_ratio = (2 / (gamma + 1) ) ^ (-gamma / (gamma - 1)); % pressure ratio at which the flow will choke
 
