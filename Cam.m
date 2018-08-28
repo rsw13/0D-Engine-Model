@@ -44,36 +44,46 @@ classdef Cam < handle
             
         end
         
-        function lift = inletLift(self, theta)
+        function [lift, Cd] = inletLiftCd(self, theta)
             
             if mod(theta,2) == 0
             
                 lift = self.inlet_lift_profile( (theta/2), 2);
+                Cd = self.inlet_lift_profile( (theta/2), 3);
                 
             else
                                          
                 l(1) = self.inlet_lift_profile( (theta/2 - 0.5), 2);
                 l(2) = self.inlet_lift_profile( (theta/2 + 0.5), 2);
                 
+                c(1) = self.inlet_lift_profile( (theta/2 - 0.5), 3);
+                c(2) = self.inlet_lift_profile( (theta/2 + 0.5), 3);
+                
                 lift = (l(1) + l(2)) / 2;
+                Cd = (c(1) + c(2)) / 2;
                 
             end
             
             lift = lift * self.inlet_max_lift;
         end
         
-        function lift = exhaustLift(self, theta)
+        function [lift, Cd] = exhaustLiftCd(self, theta)
             
             if mod(theta,2) == 0
             
                 lift = self.exhaust_lift_profile( (theta/2), 2);
+                Cd = self.exhaust_lift_profile( (theta/2), 3);
                 
             else
                                          
                 l(1) = self.exhaust_lift_profile( (theta/2 - 0.5), 2);
                 l(2) = self.exhaust_lift_profile( (theta/2 + 0.5), 2);
                 
+                c(1) = self.exhaust_lift_profile( (theta/2 - 0.5), 3);
+                c(2) = self.exhaust_lift_profile( (theta/2 + 0.5), 3);
+                
                 lift = (l(1) + l(2)) / 2;
+                Cd = (c(1) + c(2)) / 2;
                 
             end
             

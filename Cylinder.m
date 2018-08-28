@@ -25,6 +25,7 @@ classdef Cylinder < handle
         
         T = 200 + 273.15; % Intial temperature guess K
         F = 1;            % Intial equivalence ratio guess
+        R 
         gamma             % specific heat ratio
         P = 1;            % Intial pressure guess bar
         m = 1;            % Intial mass guess kg
@@ -41,11 +42,7 @@ classdef Cylinder < handle
         equivalenceTrace = [];
         thetaTrace = [];
         
-        exhustValveOpens = 520;  % Exhaust
-        exhustValveCloses = 560;
-        inletValveOpens = 710;
-        inletValveCloses = 180;
-        combustionStarts = 360;
+        combustionStarts = 360; % Combustion start (deg) 
         
         % internal energy fitting constants
         k1 = [0.692, 39.17e-6, 52.9e-9, -228.62e-13, 227.58e-17];
@@ -61,6 +58,7 @@ classdef Cylinder < handle
         % Connetions
         exhuast
         intake
+        cam
         
     end
     
@@ -79,7 +77,7 @@ classdef Cylinder < handle
                               
            end
            
-           self.gammaFunc()
+           self.updateConstants()
            
         end
         
@@ -97,9 +95,10 @@ classdef Cylinder < handle
            
         end
         
-        function gammaFunc(self)
+        function updateConstants(self)
            
             self.gamma = 1.4 - 0.16 * self.F;
+            self.R = 0.287 + 0.02 * self.F;
         end
         
         function A = newSurfaceArea(self)
@@ -129,14 +128,14 @@ classdef Cylinder < handle
         end
         
         function changeInMass(self)
-            if self.inletValveCloses <= self.theta < self.combustionStarts
+            if self.cam.inlet_close <= self.theta < self.combustionStarts
                 % valves are shut and no fuel is added, so no mass is added
                 self.dm = 0;
                 
                 self.massTrace(end+1,:) = self.dm;
                 
             elseif self.combustionStarts <= self.theta < ...
-                    self.exhustValveOpens
+                    self.cam.exhaust_open
                 % valves are shut but fuel is added, so change in mass is 
                 % equal to the rate of fuel burnt
                 if self.theta == self.combustionStarts
@@ -172,11 +171,44 @@ classdef Cylinder < handle
                 
                 self.massTrace(end+1,:) = self.dm;
                 
+            elseif self.cam.exhaust_open <= self.theta < ...
+                    self.cam.inlet_open
+                % Exhaust peroid 
+                
+                valve_diameter = self.cam.exhaust_valve_diameter;
+                lift, Cd = self.cam.exhaustLiftCd(self.theta);
+               
+                
+                if self.P > self.exhuast.P
+                                        
+                    P1 = self.P;
+                    P2 = self.exhuast.P;
+                    T1 = self.T;
+                                        
+                    self.dm = - (self.valveFlow(valve_diameter, lift, ...
+                        P1, P2, T1, Cd, self.gamma, self.dm));
+                    
+                elseif self.P < self.exhuast.P
+                    
+                    P1 = self.exhuast.P;
+                    P2 = self.P;
+                    T1 = self.exhuast.T;
+                    
+                    self.dm = self.valveFlow(valve_diameter, lift, P1, P2,...
+                        T1, Cd, self.gamma, self.dm);
+                    
+                else
+                    
+                    self.dm = 0;
+                    
+                    
+                end
+                
             end
         end
         
         function changeInF(self)
-           if self.inletValveCloses <= self.theta < self.combustionStarts
+           if self.cam.inlet_close <= self.theta < self.combustionStarts
                % Compression
                
                self.dF = 0;
@@ -184,7 +216,7 @@ classdef Cylinder < handle
                
                
            elseif self.combustionStarts <= self.theta < ...
-                    self.exhustValveOpens
+                    self.cam.exhaust_open
                % Combustion
                
                F1 = 1 + self.F * self.Fsto;
@@ -192,27 +224,25 @@ classdef Cylinder < handle
                
                self.equivalenceTrace = self.dF;
                
-           elseif (self.exhustValveOpens <= self.theta < ...
-                   self.exhustValveCloses) && (self.theta < ...
-                   self.inletValveOpens)
+           elseif (self.cam.exhaust_open <= self.theta < ...
+                   self.cam.exhaust_close) && (self.theta < ...
+                   self.cam.inlet_open)
                 % Exhaust peroid 
                 
                 self.dF = 0;
                 
-           elseif self.inletValveOpens <= self.theta < ...
-                    self.exhustValveCloses
+           elseif self.cam.inlet_open <= self.theta < ...
+                    self.cam.exhaust_close
                 % Valve overlap
                 
-           elseif self.inletValveOpens <= self.theta < ...
-                    (720 + self.inletValveCloses)
+           elseif self.cam.inlet_open <= self.theta < ...
+                    (720 + self.cam.inlet_close)
                 % Inlet peroid    
            end
         end
            
         function changeInT(self)
-            
-           R = 0.287 + 0.02 * self.F;
-               
+                           
            Tpowers = [1, self.T, self.T^2, self.T^3, self.T^4, self.T^5];
            
            u = self.k1 .* Tpowers(2:6) - self.k2 .* Tpowers(1:5) * self.F;
@@ -224,32 +254,32 @@ classdef Cylinder < handle
            
            Qloss = self.cylinderHeatLoss;
            
-           if self.inletValveCloses <= self.theta < self.combustionStarts
+           if self.cam.inlet_close <= self.theta < self.combustionStarts
                 % Compression
                 % NEED TO UPDATE DV AND VOL. AT START OF CYCLE
                 
-                self.dT = (Qloss * self.m - ((R * self.T * self.dV)/...
+                self.dT = (Qloss * self.m - ((self.R * self.T * self.dV)/...
                     self.volume))/du_dT;
                 
            elseif self.combustionStarts <= self.theta < ...
-                    self.exhustValveOpens
+                    self.cam.exhaust_open
                 % Combustion
                 
                 self.dT = ((Qloss + self.dm * self.hf - u * self.dm) ...
-                    * self.m - ((R * self.T * self.dV) / self.volume) ...
+                    * self.m - ((self.R * self.T * self.dV) / self.volume) ...
                     - du_dF * self.dF) / du_dT;
                 
-           elseif (self.exhustValveOpens <= self.theta < ...
-                   self.exhustValveCloses) && (self.theta < ...
-                   self.inletValveOpens)
+           elseif (self.cam.exhaust_open <= self.theta < ...
+                   self.cam.exhaust_close) && (self.theta < ...
+                   self.cam.inlet_open)
                 % Exhaust peroid 
                 
-           elseif self.inletValveOpens <= self.theta < ...
-                    self.exhustValveCloses
+           elseif self.cam.inlet_open <= self.theta < ...
+                    self.cam.exhaust_close
                 % Valve overlap
                 
-           elseif self.inletValveOpens <= self.theta < ...
-                    (720 + self.inletValveCloses)
+           elseif self.cam.inlet_open <= self.theta < ...
+                    (720 + self.cam.inlet_close)
                 % Inlet peroid
            
                 
@@ -261,7 +291,7 @@ classdef Cylinder < handle
            Cpis = 2 * self.N * self.stroke;
            cylinderArea = self.newSurfaceArea; 
            
-           if self.inletValveCloses <= self.theta < self.combustionStarts
+           if self.cam.inlet_close <= self.theta < self.combustionStarts
                 % Compression
                 
                 self.heatExchangeConstants(2) = 2.28;
@@ -269,7 +299,7 @@ classdef Cylinder < handle
               
                               
            elseif self.combustionStarts <= self.theta < ...
-                    self.exhustValveOpens
+                    self.cam.exhaust_open
                 % Combustion
                 
                 if self.theta == self.combustionStarts
@@ -284,23 +314,23 @@ classdef Cylinder < handle
                 
                 Pmot = self.Pref * (self.Vref / self.volume)^(1.32);
               
-           elseif (self.exhustValveOpens <= self.theta < ...
-                   self.exhustValveCloses) && (self.theta < ...
-                   self.inletValveOpens)
+           elseif (self.cam.exhaust_open <= self.theta < ...
+                   self.cam.exhaust_close) && (self.theta < ...
+                   self.cam.inlet_open)
                 % Exhaust peroid
 
                 self.heatExchangeConstants(2) = 6.18;
                 self.heatExchangeConstants(3) = 0;
                
-           elseif self.inletValveOpens <= self.theta < ...
-                    self.exhustValveCloses
+           elseif self.cam.inlet_open <= self.theta < ...
+                    self.cam.exhaust_close
                 % Valve overlap
 
                 self.heatExchangeConstants(2) = 6.18;
                 self.heatExchangeConstants(3) = 0;
                 
-           elseif self.inletValveOpens <= self.theta < ...
-                    (720 + self.inletValveCloses)
+           elseif self.cam.inlet_open <= self.theta < ...
+                    (720 + self.cam.inlet_close)
                 % Inlet peroid
 
                 self.heatExchangeConstants(2) = 6.18;
@@ -346,16 +376,17 @@ classdef Cylinder < handle
             
         end
         
-        function dm = valveFlow(valve_radius, lift, P1, P2, T1, Cd, gamma, dm)
+        function dm = valveFlow(valve_diameter, lift, P1, P2, T1, Cd, ...
+                gamma, dm)
            
             
-            A = lift * 2 * pi * valve_radius;  % valve flow area
+            A = lift * 2 * pi * valve_diameter;  % valve flow area
 
-            rho = P1 / (R * T1);
+            rho = P1 / (self.R * T1);
 
             u = dm / (rho * A * Cd);
 
-            P0 = P1 * (1 + ((gamma - 1) / 2) * (u / sqrt(gamma * R * T1)) ^ 2)^...
+            P0 = P1 * (1 + ((gamma - 1) / 2) * (u / sqrt(gamma * self.R * T1)) ^ 2)^...
             (gamma / (gamma -1  ));   % stagnation pressure upstream of the valve
 
             critical_pressure_ratio = (2 / (gamma + 1) ) ^ (-gamma / (gamma - 1)); % pressure ratio at which the flow will choke
@@ -364,12 +395,12 @@ classdef Cylinder < handle
 
             if pressure_ratio >= critical_pressure_ratio
 
-                dm = Cd * A * P1 * sqrt((gamma / (R * T1)) * (2 / (gamma +1)) ^...
+                dm = Cd * A * P1 * sqrt((gamma / (self.R * T1)) * (2 / (gamma +1)) ^...
                 ((gamma +1) / (gamma -1)));
 
             else
 
-                dm = Cd * A * P1 * sqrt(((2 * gamma) / (gamma -1)) * (1 / (R * T1) ) * ...
+                dm = Cd * A * P1 * sqrt(((2 * gamma) / (gamma -1)) * (1 / (self.R * T1) ) * ...
                     ((P2 / P1)^(2/gamma) - (P2 / P1)^((gamma + 1)/gamma)));
 
             end
