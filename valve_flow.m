@@ -4,9 +4,6 @@ valve_radius = 0.0315;
 
 A = lift * 2 * pi * valve_radius;  % valve flow area
 
-% need to add Cf map/.csv file so dm can be caluculated
-
-
 rho = P1 / (R * T1);
 
 u = dm / (rho * A * Cd);

@@ -8,11 +8,15 @@ classdef Cam < handle
         exhaust_close
         exhaust_lift_profile
         exhaust_max_lift
+        exhaust_valve_diameter
+        exhaust_Cf_profile
         
         inlet_open
         inlet_close
         inlet_lift_profile
         inlet_max_lift
+        inlet_valve_diameter
+        inlet_Cf_profile
         
     end
     
@@ -21,18 +25,23 @@ classdef Cam < handle
             
             exhaust_data = csvread(exhaust_filename, 1, 0);
 
-            self.exhaust_open = exhaust_data(1, 3);
-            self.exhaust_close = exhaust_data(1, 4);
-            self.exhaust_max_lift = exhaust_data(1, 5);
+            self.exhaust_open = exhaust_data(1, 4);
+            self.exhaust_close = exhaust_data(1, 5);
+            self.exhaust_max_lift = exhaust_data(1, 6);
+            self.exhaust_valve_diameter = exhaust_data(1, 7);
             self.exhaust_lift_profile = exhaust_data(:, 1:2);
+            self.exhaust_Cf_profile = exhaust_data(:, [1, 3]);
 
 
             inlet_data = csvread(inlet_filename, 1, 0);
 
-            self.inlet_open = inlet_data(1, 3);
-            self.inlet_close = inlet_data(1, 4);
-            self.inlet_max_lift = inlet_data(1, 5);
+            self.inlet_open = inlet_data(1, 4);
+            self.inlet_close = inlet_data(1, 5);
+            self.inlet_max_lift = inlet_data(1, 6);
+            self.inlet_valve_diameter = inlet_data(1, 7);
             self.inlet_lift_profile = inlet_data(:, 1:2);
+            self.inlet_Cf_profile = inlet_data(:, [1, 3]);
+            
         end
         
         function lift = inletLift(self, theta)

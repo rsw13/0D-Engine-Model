@@ -25,6 +25,7 @@ classdef Cylinder < handle
         
         T = 200 + 273.15; % Intial temperature guess K
         F = 1;            % Intial equivalence ratio guess
+        gamma             % specific heat ratio
         P = 1;            % Intial pressure guess bar
         m = 1;            % Intial mass guess kg
         
@@ -78,7 +79,7 @@ classdef Cylinder < handle
                               
            end
            
-           
+           self.gammaFunc()
            
         end
         
@@ -94,6 +95,11 @@ classdef Cylinder < handle
             self.volume = (pi() * (self.bore / 2) ^ 2) * ...
                 (self. clearance + H - L);
            
+        end
+        
+        function gammaFunc(self)
+           
+            self.gamma = 1.4 - 0.16 * self.F;
         end
         
         function A = newSurfaceArea(self)
@@ -340,7 +346,34 @@ classdef Cylinder < handle
             
         end
         
-        
+        function dm = valveFlow(valve_radius, lift, P1, P2, T1, Cd, gamma, dm)
+           
+            
+            A = lift * 2 * pi * valve_radius;  % valve flow area
+
+            rho = P1 / (R * T1);
+
+            u = dm / (rho * A * Cd);
+
+            P0 = P1 * (1 + ((gamma - 1) / 2) * (u / sqrt(gamma * R * T1)) ^ 2)^...
+            (gamma / (gamma -1  ));   % stagnation pressure upstream of the valve
+
+            critical_pressure_ratio = (2 / (gamma + 1) ) ^ (-gamma / (gamma - 1)); % pressure ratio at which the flow will choke
+
+            pressure_ratio = P0 / P2;  % pressure ratio between upstream of the valve and downstream
+
+            if pressure_ratio >= critical_pressure_ratio
+
+                dm = Cd * A * P1 * sqrt((gamma / (R * T1)) * (2 / (gamma +1)) ^...
+                ((gamma +1) / (gamma -1)));
+
+            else
+
+                dm = Cd * A * P1 * sqrt(((2 * gamma) / (gamma -1)) * (1 / (R * T1) ) * ...
+                    ((P2 / P1)^(2/gamma) - (P2 / P1)^((gamma + 1)/gamma)));
+
+            end
+        end
     end
 end
 
